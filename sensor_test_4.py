@@ -77,48 +77,53 @@ if __name__ == '__main__':
 	SET_BMX055()
 	f = open('data.dat', 'w')
 
-	dt = 0.01
-	t = 0
+	
 	theta = 0
 	theta_GYRO = 0
 	theta_ACCL = 0
-	t_start = 0
-	dt_sleep = dt
-	k_1 = 20
-	error_theta = 0.0000822816
-	judge = 0
-	alpha = 0.1
-	beta = 0.1
+	v_theta = 0
+	
+	
+	n = 20
+	theta_zero_judge = 0
 
+	alpha = 0.95
+	beta = 0.9
+	gamma = 0.9
+
+	dt = 0.01
+	t = 0
+	dt_sleep = dt
+	t_start = 0
 	try:
 		t_start = time.time()
 		while True:
-			for i in range(k_1):
+			for i in range(n):
 				#加速度、角速度取得と補正
 				a_x = (-GET_XACCL() - 0.239738) * 0.980209
 				a_z = (GET_ZACCL() + 0.285688) * 0.984507
-				v_theta = -GET_YGYRO() + error_theta
+				v_theta = v_theta * gamma + (-GET_YGYRO() + 0.0000822816) * (1 - gamma)
 				#加速度から角度を算出
-				theta_ACCL = -np.arctan(a_x/a_z)
+				theta_ACCL = -np.arctan(a_x/a_z) - 0.010725428306555
 
 				#角速度を積分し角度を算出（補正付き）
 				theta_GYRO += v_theta * dt
 
 				#加速度の大きさから角度を加重平均化
-				alpha = 0.1 * np.exp(-11.09*np.power(9.80665 - np.sqrt(a_x*a_x+a_z*a_z), 2))
-				theta = theta_ACCL * alpha + theta_GYRO * (1 - alpha)
+				theta = (theta + v_theta * dt) * alpha + theta_ACCL * (1 - alpha)
 
 				#ゼロ度検出
-				judge = judge * (1 - beta) + np.abs(theta_ACCL) * beta
-				if judge < 0.005:
-					theta_GYRO = 0
+				theta_zero_judge = theta_zero_judge * beta + np.abs(theta_ACCL) * (1 - beta)
+				if theta_zero_judge < 0.01:
+					#theta_GYRO = 0
+					theta_zero_detection = True
 
-				f.write(str(t) + "	" + str(theta_GYRO) + "	" + str(theta_ACCL) + "	" + str(theta) + "	" + str(v_theta) + "	" + str(judge) + '\n')
+				f.write(str(t) + "	" + str(theta_GYRO) + "	" + str(theta_ACCL) + "	" + str(theta) + "	" + str(v_theta) + "	" + str(dt_sleep) + '\n')
 
 				t += dt
 				time.sleep(dt_sleep)
 			#周波数調整
-			dt_sleep = dt - (time.time() - t_start - t) / k_1
+			dt_sleep = dt - (time.time() - t_start - t) / n
 			if dt_sleep < 0.001:
 				dt_sleep = 0.001
 			if dt < dt_sleep:

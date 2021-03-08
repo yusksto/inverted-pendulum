@@ -16,7 +16,7 @@ PinC_2=9
 PinD_2=11
 
 moter_sleep_min = 0.001
-moter_sleep_max = 0.05
+moter_sleep_max = 0.1
 
 def SET_GPIO():
 	GPIO.setmode(GPIO.BCM)
@@ -28,16 +28,16 @@ def SET_GPIO():
 	GPIO.setup(PinB_2, GPIO.OUT)
 	GPIO.setup(PinC_2, GPIO.OUT)
 	GPIO.setup(PinD_2, GPIO.OUT)
+	time.sleep(0.1)
 def MOTER_SLEEP_LEFT(moter_sleep):
 	if moter_sleep < moter_sleep_max:
 		time.sleep(moter_sleep)
 	else:
 		powersave_left = True
 		GPIO.output(PinC_1,GPIO.HIGH)
-		n = int(moter_sleep / moter_sleep_max * 2)
-		moter_sleep = moter_sleep_max / 2
+		n = int(moter_sleep / moter_sleep_min)
 		for i in range(n):
-			time.sleep(moter_sleep)
+			time.sleep(moter_sleep_min)
 			if np.abs(dt_moter_left) < moter_sleep_max:
 				powersave_left = False
 				GPIO.output(PinC_1,GPIO.LOW)
@@ -48,10 +48,9 @@ def MOTER_SLEEP_RIGHT(moter_sleep):
 	else:
 		powersave_right = True
 		GPIO.output(PinC_2,GPIO.HIGH)
-		n = int(moter_sleep / moter_sleep_max * 2)
-		moter_sleep = moter_sleep_max / 2
+		n = int(moter_sleep / moter_sleep_min)
 		for i in range(n):
-			time.sleep(moter_sleep)
+			time.sleep(moter_sleep_min)
 			if np.abs(dt_moter_right) < moter_sleep_max:
 				powersave_right = False
 				GPIO.output(PinC_2,GPIO.LOW)
@@ -64,7 +63,7 @@ def MOTER_LEFT():
 	motor_drive_left = True
 	powersave_left = False
 	GPIO.output(PinD_1,GPIO.HIGH)
-	while motor_drive_left == True:
+	while motor_drive_left == True:		
 		if moter_sleep_min > np.abs(dt_moter_left):
 			time.sleep(moter_sleep_min)
 			continue
@@ -91,7 +90,7 @@ def MOTER_LEFT():
 			MOTER_SLEEP_LEFT(np.abs(dt_moter_left))
 		if dt_moter_left < -moter_sleep_min:
 			GPIO.output(PinA_1,GPIO.LOW)
-			MOTER_SLEEP_LEFT(np.abs(dt_moter_right))
+			MOTER_SLEEP_LEFT(np.abs(dt_moter_left))
 	GPIO.output(PinD_1,GPIO.LOW)
 def MOTER_RIGHT():
 	global dt_moter_right
@@ -101,7 +100,7 @@ def MOTER_RIGHT():
 	motor_drive_right = True
 	powersave_right = False
 	GPIO.output(PinD_2,GPIO.HIGH)
-	while motor_drive_right == True:
+	while motor_drive_right == True:		
 		if moter_sleep_min > np.abs(dt_moter_right):
 			time.sleep(moter_sleep_min)
 			continue
@@ -117,16 +116,16 @@ def MOTER_RIGHT():
 		if moter_sleep_min < dt_moter_right:
 			GPIO.output(PinB_2,GPIO.LOW)
 			MOTER_SLEEP_RIGHT(np.abs(dt_moter_right))
-		if -moter_sleep_max < dt_moter_right and dt_moter_right < -moter_sleep_min:
+		if dt_moter_right < -moter_sleep_min:
 			GPIO.output(PinB_2,GPIO.HIGH)
 			MOTER_SLEEP_RIGHT(np.abs(dt_moter_right))
-		if -moter_sleep_max < dt_moter_right and dt_moter_right < -moter_sleep_min:
+		if dt_moter_right < -moter_sleep_min:
 			GPIO.output(PinA_2,GPIO.HIGH)
 			MOTER_SLEEP_RIGHT(np.abs(dt_moter_right))
-		if -moter_sleep_max < dt_moter_right and dt_moter_right < -moter_sleep_min:
+		if dt_moter_right < -moter_sleep_min:
 			GPIO.output(PinB_2,GPIO.LOW)
 			MOTER_SLEEP_RIGHT(np.abs(dt_moter_right))
-		if -moter_sleep_max < dt_moter_right and dt_moter_right < -moter_sleep_min:
+		if dt_moter_right < -moter_sleep_min:
 			GPIO.output(PinA_2,GPIO.LOW)
 			MOTER_SLEEP_RIGHT(np.abs(dt_moter_right))
 	GPIO.output(PinD_2,GPIO.LOW)
@@ -212,13 +211,13 @@ def CAL_THETA():
 	theta_GYRO = 0
 	theta_ACCL = 0
 
-	n = 20
-	alpha = 0.1
-	beta = 0.1
+	n = 2
+	alpha = 0.95
+	beta = 0.9
 	gamma = 0.6
 	theta_zero_judge = 0
 
-	dt = 0.005
+	dt = 0.007
 	dt_sleep = dt
 	t = 0
 	t_start = time.time()
@@ -228,17 +227,19 @@ def CAL_THETA():
 			a_x = (-GET_XACCL() - 0.239738) * 0.980209
 			a_z = (GET_ZACCL() + 0.285688) * 0.984507
 			#加速度から角度を算出
-			theta_ACCL = -np.arctan(a_x/a_z)
+			theta_ACCL = -np.arctan(a_x/a_z) - 0.010725428306555
 			v_theta = v_theta * gamma + (-GET_YGYRO() + 0.0000822816) * (1 - gamma)
 			#角速度を積分し角度を算出（補正付き）
 			theta_GYRO += v_theta * dt
-			theta = theta_GYRO
+			theta = (theta + v_theta * dt) * alpha + theta_ACCL * (1 - alpha)
 			#ゼロ度検出
-			theta_zero_judge = theta_zero_judge * (1 - beta) + np.abs(theta_ACCL) * beta
-			if theta_zero_judge < 0.01:
+			theta_zero_judge = theta_zero_judge * beta  + np.abs(theta_ACCL) * (1 - beta)
+			if theta_zero_judge < 0.005:
+				theta = 0
 				theta_GYRO = 0
 				theta_zero_detection = True
 				print("theta=zero detected")
+
 			t += dt
 			time.sleep(dt_sleep)
 		#周波数調整
@@ -255,18 +256,21 @@ if __name__ == '__main__':
 		#i2cとbmx055設定
 		SET_BMX055()
 		#モーター駆動と角度計算を別スレッドでスタート
-		moter_left = threading.Thread(target=MOTER_LEFT)
-		moter_right = threading.Thread(target=MOTER_RIGHT)
 		cal_theta = threading.Thread(target=CAL_THETA)
-		moter_left.start()
-		moter_right.start()
 		cal_theta.start()
 		while True:#リセット用ループ
+			SET_GPIO()			
+			moter_left = threading.Thread(target=MOTER_LEFT)
+			moter_right = threading.Thread(target=MOTER_RIGHT)
+			motor_drive_left = True
+			motor_drive_right = True
+			moter_left.start()
+			moter_right.start()
 			#角度ゼロの検出待ち
 			print("stand by")
 			theta_zero_detection = False
 			while theta_zero_detection == False:
-				time.sleep(0.01)
+				time.sleep(0.1)
 			print("start control program")
 
 			m = 0.78
@@ -282,32 +286,32 @@ if __name__ == '__main__':
 			v_x = 0.001
 			x = 0
 
-			dt = 0.005
+			dt = 0.007
 			dt_sleep = dt
 			t = 0
 			t_start = time.time()
-			n = 20
+			n = 2
 			while True:
 				for i in range(n):
 					theta_zero_detection == False
-					a_x = k_1 * theta + k_2 * v_theta + k_3 * v_x
-					v_x += a_x * dt
+					a_x = k_1 * theta + k_2 * v_theta + k_3 * v_x					
 					x += v_x * dt
-
-					dt_moter_left = np.pi / 25 / v_x * r
-					dt_moter_right = np.pi / 25 / v_x * r
+					v_x += a_x * dt
+					if not v_x == 0:
+						dt_moter_left = np.pi / 25 / v_x * r
+						dt_moter_right = np.pi / 25 / v_x * r
 
 					t += dt
 					time.sleep(dt_sleep)
 					if np.pi / 25 / v_x * r > moter_sleep_max * 2 and theta_zero_detection == True:
-						v_x = 0.001
+						v_x = 0
 						print("v_x = 0 detected")
 					#ログ出力
 					f.write(str(t) + "	" + str(dt_sleep) + "	" + str(theta) + "	" + str(v_theta) + "	" + str(x) + "	" + str(v_x) + "	" + str(a_x) + '\n')
 				#周波数調整			
 				dt_sleep = dt - (time.time() - t_start - t) / n
-				if dt_sleep < 0.0005:
-					dt_sleep = 0.0005
+				if dt_sleep < 0.001:
+					dt_sleep = 0.001
 				if dt < dt_sleep:
 					dt_sleep = dt
 				print(str(t))
@@ -315,9 +319,12 @@ if __name__ == '__main__':
 				#リセット判定
 				if np.abs(theta) > np.pi / 3:
 					print("reset")
-					dt_moter_left = 0
-					dt_moter_right = 0
+					motor_drive_left = False
+					motor_drive_right = False
+					moter_left.join()
+					moter_right.join()
 					theta_zero_detection = False
+					CLEAR_GPIO()
 					break
 	except KeyboardInterrupt:
 		print("\nCtl+C")
