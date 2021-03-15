@@ -16,7 +16,7 @@ PinC_2=9
 PinD_2=11
 
 moter_sleep_min = 0.001
-moter_sleep_max = 0.1
+moter_sleep_max = 0.05
 
 moter_steps = 200
 operation_modes = 4
