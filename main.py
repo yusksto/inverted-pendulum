@@ -16,7 +16,7 @@ PinC_2=9
 PinD_2=11
 
 moter_sleep_min = 0.001
-moter_sleep_max = 0.1
+moter_sleep_max = 0.07
 
 moter_steps = 200
 operation_modes = 4
@@ -33,36 +33,6 @@ def SET_GPIO():
 	GPIO.setup(PinC_2, GPIO.OUT)
 	GPIO.setup(PinD_2, GPIO.OUT)
 	time.sleep(0.1)
-def MOTER_SLEEP_LEFT(dt):
-	if dt < moter_sleep_max:
-		time.sleep(dt)
-	else:
-		powersave_left = True
-		GPIO.output(PinC_1,GPIO.HIGH)
-		n = int(dt / moter_sleep_min)
-		for i in range(n):
-			time.sleep(moter_sleep_min)
-			if k / v_theta_moter_left < dt:
-				powersave_left = False
-				GPIO.output(PinC_1,GPIO.LOW)
-				break
-		powersave_left = False
-		GPIO.output(PinC_1,GPIO.LOW)
-def MOTER_SLEEP_RIGHT(dt):
-	if dt < moter_sleep_max:
-		time.sleep(dt)
-	else:
-		powersave_right = True
-		GPIO.output(PinC_2,GPIO.HIGH)
-		n = int(dt / moter_sleep_min)
-		for i in range(n):
-			time.sleep(moter_sleep_min)
-			if k / v_theta_moter_right < dt:
-				powersave_right = False
-				GPIO.output(PinC_2,GPIO.LOW)
-				break
-		powersave_right = False
-		GPIO.output(PinC_2,GPIO.LOW)
 def MOTER_LEFT():
 	global v_theta_moter_left
 	global theta_moter_left
@@ -83,41 +53,41 @@ def MOTER_LEFT():
 		theta_moter_left = k_1 * n
 		if not v_theta_moter_left == 0:
 			dt = k / v_theta_moter_left		
-		if np.abs(dt) < moter_sleep_min:
+		if np.abs(dt) < moter_sleep_min or moter_sleep_max < np.abs(dt):
 			time.sleep(moter_sleep_min)
 			continue
 		i = n % 4		
 		if i == 0 and dt > 0:
 			GPIO.output(PinA_1,GPIO.HIGH)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 1 and dt > 0:
 			GPIO.output(PinB_1,GPIO.HIGH)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 2 and dt > 0:
 			GPIO.output(PinA_1,GPIO.LOW)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 3 and dt > 0:
 			GPIO.output(PinB_1,GPIO.LOW)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 0 and dt < 0:
 			GPIO.output(PinB_1,GPIO.HIGH)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 1 and dt < 0:
 			GPIO.output(PinA_1,GPIO.LOW)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 2 and dt < 0:
 			GPIO.output(PinB_1,GPIO.LOW)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 3 and dt < 0:
 			GPIO.output(PinA_1,GPIO.HIGH)
-			MOTER_SLEEP_LEFT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 	GPIO.output(PinD_1,GPIO.LOW)
 def MOTER_RIGHT():
@@ -141,41 +111,41 @@ def MOTER_RIGHT():
 		theta_moter_right = k_1 * n
 		if not v_theta_moter_right == 0:
 			dt = k / v_theta_moter_right
-		if np.abs(dt) < moter_sleep_min:
+		if np.abs(dt) < moter_sleep_min or moter_sleep_max < np.abs(dt):
 			time.sleep(moter_sleep_min)
 			continue
 		i = n % 4
 		if i == 0 and dt > 0:
 			GPIO.output(PinA_2,GPIO.HIGH)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 1 and dt > 0:
 			GPIO.output(PinB_2,GPIO.HIGH)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 2 and dt > 0:
 			GPIO.output(PinA_2,GPIO.LOW)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 3 and dt > 0:
 			GPIO.output(PinB_2,GPIO.LOW)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n += 1
 		elif i == 0 and dt < 0:
 			GPIO.output(PinB_2,GPIO.HIGH)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 1 and dt < 0:
 			GPIO.output(PinA_2,GPIO.LOW)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 2 and dt < 0:
 			GPIO.output(PinB_2,GPIO.LOW)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 		elif i == 3 and dt < 0:
 			GPIO.output(PinA_2,GPIO.HIGH)
-			MOTER_SLEEP_RIGHT(np.abs(dt))
+			time.sleep(np.abs(dt))
 			n -= 1
 	GPIO.output(PinD_2,GPIO.LOW)
 def CLEAR_GPIO():
@@ -326,8 +296,8 @@ def KEYBOARD_CONTROL():
 		else:
 			a = 0
 			b = 0
-		v_left = v_slide * (2 * a + b)
-		v_right = v_slide * (2 * a - b)
+		v_left = v_slide * (4 * a + 2 * b)
+		v_right = v_slide * (4 * a - 2 * b)
 if __name__ == '__main__':
 	try:
 		f = open('data.dat', 'w')
@@ -383,8 +353,8 @@ if __name__ == '__main__':
 					x_1 = theta_moter_left * r
 					x_2 = theta_moter_right * r
 
-					v_theta_moter_left = (v_x - v_left) / r
-					v_theta_moter_right = (v_x - v_right) / r
+					v_theta_moter_left = (v_x + v_left) / r
+					v_theta_moter_right = (v_x + v_right) / r
 
 					t += dt
 					time.sleep(dt_sleep)
