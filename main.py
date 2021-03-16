@@ -47,7 +47,7 @@ def MOTER_LEFT():
 
 	n = 0
 	dt = 0
-	k_1 = 2 * np.pi / moter_steps
+	k_1 = 2 * np.pi / moter_steps * operation_modes
 
 	while motor_drive_left == True:	
 		theta_moter_left = k_1 * n
@@ -107,7 +107,7 @@ def MOTER_RIGHT():
 
 	n = 0
 	dt = 0
-	k_1 = 2 * np.pi / 200
+	k_1 = 2 * np.pi / moter_steps * operation_modes
 
 	while motor_drive_right == True:
 		theta_moter_right = k_1 * n
@@ -253,7 +253,7 @@ def CAL_THETA():
 			a_x = (-GET_XACCL() - 0.239738) * 0.980209
 			a_z = (GET_ZACCL() + 0.285688) * 0.984507
 			#加速度から角度を算出
-			theta_ACCL = theta_ACCL * delta + (-np.arctan(a_x/a_z) - 0.010725428306555) * (1 - delta)
+			theta_ACCL = theta_ACCL * delta + (-np.arctan(a_x/a_z) - 0.007725428306555) * (1 - delta)
 			#角速度を積分し角度を算出（補正付き）
 			v_theta = v_theta * gamma + (-GET_YGYRO() + 0.0000822816) * (1 - gamma)
 			theta_GYRO += v_theta * dt
@@ -280,7 +280,7 @@ def KEYBOARD_CONTROL():
 	global keyboard
 	v_left = 0
 	v_right = 0
-	v_slide = 0.1
+	v_slide = 0.25
 	keyboard = True
 
 	a = 0
@@ -288,8 +288,12 @@ def KEYBOARD_CONTROL():
 
 	while keyboard == True:
 		keyboard_input = input("keyboard control w,a,s,d")
-		print(keyboard_input)		
-		if keyboard_input == "w" and (not a == 1):
+		print(keyboard_input)
+		if keyboard_input == "x":
+			x = 0
+			theta_moter_left = 0
+			theta_moter_right = 0
+		elif keyboard_input == "w" and (not a == 1):
 			a += 1
 		elif keyboard_input == "s" and (not a == -1):
 			a -= 1
@@ -300,8 +304,12 @@ def KEYBOARD_CONTROL():
 		else:
 			a = 0
 			b = 0
-		v_left = v_slide * (4 * a + 2 * b)
-		v_right = v_slide * (4 * a - 2 * b)
+		v_left = v_slide * (2 * a + b)
+		v_right = v_slide * (2 * a - b)
+def func(x):
+	a = 0.4
+	b = 2 / a
+	return a * (1 - np.exp(-b * x)) / (1 + np.exp(-b * x))
 if __name__ == '__main__':
 	try:
 		f = open('data.dat', 'w')
@@ -336,11 +344,15 @@ if __name__ == '__main__':
 
 			k_2 = 15 #角速度項
 			k_1 = 9.80665 + m * R / 4 / I * k_2 * k_2 #角度項
-			k_3 = 3 #座標項
+			print(k_1)
+			k_3 = 1 #座標項
 			k_4 = 5 #速度項
+
+			alpha = 0.9 #位置推定相補フィルター用定数
 
 			a_x = 0
 			v_x = 0.001
+			global x
 			x = 0
 
 			dt = 0.007
@@ -351,14 +363,15 @@ if __name__ == '__main__':
 			while True:
 				for i in range(n):
 					theta_zero_detection == False
-					a_x = k_1 * theta + k_2 * v_theta + k_4 * v_x					
-					x += v_x * dt
-					v_x += a_x * dt
+					a_x = k_1 * theta + k_2 * v_theta + k_3 * func(x) + k_4 * v_x
 					x_1 = theta_moter_left * r
-					x_2 = theta_moter_right * r
-
+					x_2 = theta_moter_right * r				
+					x = (x + v_x * dt) * alpha + (x_1 + x_2) / 2 * (1 - alpha)
+					v_x += a_x * dt
+					
 					v_theta_moter_left = (v_x + v_left) / r
 					v_theta_moter_right = (v_x + v_right) / r
+					x += (v_left + v_right) / 2 * dt
 
 					t += dt
 					time.sleep(dt_sleep)
@@ -372,7 +385,7 @@ if __name__ == '__main__':
 					dt_sleep = 0.001
 				if dt < dt_sleep:
 					dt_sleep = dt
-				
+
 				#リセット判定
 				if np.abs(theta) > np.pi / 3:
 					print("reset")
