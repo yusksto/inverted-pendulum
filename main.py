@@ -47,7 +47,7 @@ def MOTER_LEFT():
 
 	n = 0
 	dt = 0
-	k_1 = 2 * np.pi / 200
+	k_1 = 2 * np.pi / moter_steps
 
 	while motor_drive_left == True:	
 		theta_moter_left = k_1 * n
@@ -57,38 +57,40 @@ def MOTER_LEFT():
 			time.sleep(moter_sleep_min)
 			continue
 		i = n % 4		
-		if i == 0 and dt > 0:
-			GPIO.output(PinA_1,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 1 and dt > 0:
-			GPIO.output(PinB_1,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 2 and dt > 0:
-			GPIO.output(PinA_1,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 3 and dt > 0:
-			GPIO.output(PinB_1,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 0 and dt < 0:
-			GPIO.output(PinB_1,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 1 and dt < 0:
-			GPIO.output(PinA_1,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 2 and dt < 0:
-			GPIO.output(PinB_1,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 3 and dt < 0:
-			GPIO.output(PinA_1,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n -= 1
+		if dt > 0:
+			if i == 0:
+				GPIO.output(PinA_1,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 1:
+				GPIO.output(PinB_1,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 2:
+				GPIO.output(PinA_1,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 3:
+				GPIO.output(PinB_1,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n += 1
+		elif dt < 0:
+			if i == 0:
+				GPIO.output(PinB_1,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 1:
+				GPIO.output(PinA_1,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 2:
+				GPIO.output(PinB_1,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 3:
+				GPIO.output(PinA_1,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n -= 1
 	GPIO.output(PinD_1,GPIO.LOW)
 def MOTER_RIGHT():
 	global v_theta_moter_right
@@ -115,38 +117,40 @@ def MOTER_RIGHT():
 			time.sleep(moter_sleep_min)
 			continue
 		i = n % 4
-		if i == 0 and dt > 0:
-			GPIO.output(PinA_2,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 1 and dt > 0:
-			GPIO.output(PinB_2,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 2 and dt > 0:
-			GPIO.output(PinA_2,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 3 and dt > 0:
-			GPIO.output(PinB_2,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n += 1
-		elif i == 0 and dt < 0:
-			GPIO.output(PinB_2,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 1 and dt < 0:
-			GPIO.output(PinA_2,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 2 and dt < 0:
-			GPIO.output(PinB_2,GPIO.LOW)
-			time.sleep(np.abs(dt))
-			n -= 1
-		elif i == 3 and dt < 0:
-			GPIO.output(PinA_2,GPIO.HIGH)
-			time.sleep(np.abs(dt))
-			n -= 1
+		if dt > 0:
+			if i == 0:
+				GPIO.output(PinA_2,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 1:
+				GPIO.output(PinB_2,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 2:
+				GPIO.output(PinA_2,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n += 1
+			elif i == 3:
+				GPIO.output(PinB_2,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n += 1
+		elif dt < 0:
+			if i == 0:
+				GPIO.output(PinB_2,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 1:
+				GPIO.output(PinA_2,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 2:
+				GPIO.output(PinB_2,GPIO.LOW)
+				time.sleep(np.abs(dt))
+				n -= 1
+			elif i == 3:
+				GPIO.output(PinA_2,GPIO.HIGH)
+				time.sleep(np.abs(dt))
+				n -= 1
 	GPIO.output(PinD_2,GPIO.LOW)
 def CLEAR_GPIO():
 	GPIO.cleanup()
