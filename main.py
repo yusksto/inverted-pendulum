@@ -16,12 +16,17 @@ PinC_2=9
 PinD_2=11
 
 moter_sleep_min = 0.001
+moter_sleep_mid = 0.02
 moter_sleep_max = 0.07
 
 moter_steps = 200
 operation_modes = 4
 k = 2 * np.pi / moter_steps * operation_modes
 
+def func(x):
+	a = 0.4
+	b = 2 / a
+	return a * (1 - np.exp(-b * x)) / (1 + np.exp(-b * x))
 def SET_GPIO():
 	GPIO.setmode(GPIO.BCM)
 	GPIO.setup(PinA_1, GPIO.OUT)
@@ -36,27 +41,33 @@ def SET_GPIO():
 def MOTER_LEFT():
 	global v_theta_moter_left
 	global theta_moter_left
-	global motor_drive_left
+	global motor_left_continue
 	global powersave_left
 
 	v_theta_moter_left = 0
 	theta_moter_left = 0
-	motor_drive_left = True
+	motor_left_continue = True
 	powersave_left = False
-	GPIO.output(PinD_1,GPIO.HIGH)
-
+	
 	n = 0
 	dt = 0
 	k_1 = 2 * np.pi / moter_steps * operation_modes
 
-	while motor_drive_left == True:	
+	GPIO.output(PinD_1,GPIO.HIGH)
+	while motor_left_continue == True:	
 		theta_moter_left = k_1 * n
 		if not v_theta_moter_left == 0:
-			dt = k / v_theta_moter_left		
+			dt = k / v_theta_moter_left
+		if powersave_left == True and moter_sleep_mid > np.abs(dt):
+			powersave_left = False
+			GPIO.output(PinC_1,GPIO.LOW)
+		if powersave_left == False and moter_sleep_mid < np.abs(dt):
+			powersave_left = True
+			GPIO.output(PinC_1,GPIO.HIGH)
 		if np.abs(dt) < moter_sleep_min or moter_sleep_max < np.abs(dt):
 			time.sleep(moter_sleep_min)
 			continue
-		i = n % 4		
+		i = n % 4
 		if dt > 0:
 			if i == 0:
 				GPIO.output(PinA_1,GPIO.HIGH)
@@ -95,12 +106,12 @@ def MOTER_LEFT():
 def MOTER_RIGHT():
 	global v_theta_moter_right
 	global theta_moter_right
-	global motor_drive_right
+	global motor_right_continue
 	global powersave_right
 
 	v_theta_moter_right = 0
 	theta_moter_right = 0
-	motor_drive_right = True
+	motor_right_continue = True
 	powersave_right = False
 
 	GPIO.output(PinD_2,GPIO.HIGH)
@@ -109,10 +120,16 @@ def MOTER_RIGHT():
 	dt = 0
 	k_1 = 2 * np.pi / moter_steps * operation_modes
 
-	while motor_drive_right == True:
+	while motor_right_continue == True:
 		theta_moter_right = k_1 * n
 		if not v_theta_moter_right == 0:
 			dt = k / v_theta_moter_right
+		if powersave_right == True and moter_sleep_mid > np.abs(dt):
+			powersave_right = False
+			GPIO.output(PinC_2,GPIO.LOW)
+		if powersave_right == False and moter_sleep_mid < np.abs(dt):
+			powersave_right = True
+			GPIO.output(PinC_2,GPIO.HIGH)
 		if np.abs(dt) < moter_sleep_min or moter_sleep_max < np.abs(dt):
 			time.sleep(moter_sleep_min)
 			continue
@@ -220,74 +237,23 @@ def GET_ZGYRO():
 	if zGyro > 32767 :
 		zGyro -= 65536
 	return zGyro * 0.0153/360*2*3.14159
-def CAL_THETA():
-	global theta
-	global v_theta
-	global theta_zero_detection
-	global cal
-
-	theta = 0
-	v_theta = 0
-	theta_zero_detection = False
-	cal = True
-
-	theta_GYRO = 0
-	theta_ACCL = 0
-
-	n = 2
-	alpha = 0.05 #角度推定相補フィルター定数
-	beta = 0.9 #ゼロ度検出用ローパスフィルタ定数
-	gamma = 0.5 #角速度ローパスフィルタ定数
-	delta = 0.9 #加速度による角度推定用ローパスフィルタ定数
-	zeta = 0.9 #(角度推定相補フィルター定数"alpha")用ローパスフィルタ定数
-
-	theta_zero_judge = 0
-
-	dt = 0.007
-	dt_sleep = dt
-	t = 0
-	t_start = time.time()
-	while cal == True:
-		for i in range(n):
-			#加速度取得と補正
-			a_x = (-GET_XACCL() - 0.239738) * 0.980209
-			a_z = (GET_ZACCL() + 0.285688) * 0.984507
-			#加速度から角度を算出
-			theta_ACCL = theta_ACCL * delta + (-np.arctan(a_x/a_z) - 0.007725428306555) * (1 - delta)
-			#角速度を積分し角度を算出（補正付き）
-			v_theta = v_theta * gamma + (-GET_YGYRO() + 0.0000822816) * (1 - gamma)
-			theta_GYRO += v_theta * dt
-			alpha = alpha * zeta + (0.05 * np.exp(-11.09*np.power(9.80665 - np.sqrt(a_x*a_x+a_z*a_z), 2))) * (1 - zeta)
-			theta = (theta + v_theta * dt) * (1 - alpha) + theta_ACCL * alpha
-			#ゼロ度検出
-			theta_zero_judge = theta_zero_judge * beta  + np.abs(theta_ACCL) * (1 - beta)
-			if theta_zero_judge < 0.005:
-				theta = 0
-				theta_GYRO = 0
-				theta_zero_detection = True
-
-			t += dt
-			time.sleep(dt_sleep)
-		#周波数調整
-		dt_sleep = dt - (time.time() - t_start - t) / n
-		if dt_sleep < 0.001:
-			dt_sleep = 0.001
-		if dt < dt_sleep:
-			dt_sleep = dt
-def KEYBOARD_CONTROL():
+def KEYBOARD_OPERATION():
 	global v_right
 	global v_left
-	global keyboard
+	global keyboard_operation_continue
+	global x
+	global theta_moter_left
+	global theta_moter_right
 	v_left = 0
 	v_right = 0
 	v_slide = 0.25
-	keyboard = True
+	keyboard_operation_continue = True
 
 	a = 0
 	b = 0
 
-	while keyboard == True:
-		keyboard_input = input("keyboard control w,a,s,d")
+	while keyboard_operation_continue == True:
+		keyboard_input = input()
 		print(keyboard_input)
 		if keyboard_input == "x":
 			x = 0
@@ -306,10 +272,123 @@ def KEYBOARD_CONTROL():
 			b = 0
 		v_left = v_slide * (2 * a + b)
 		v_right = v_slide * (2 * a - b)
-def func(x):
-	a = 0.4
-	b = 2 / a
-	return a * (1 - np.exp(-b * x)) / (1 + np.exp(-b * x))
+def CONTROL():
+	global theta
+	theta = 0
+	global v_theta
+	v_theta = 0
+	global x
+	x = 0
+	global v_x
+	v_x = 0
+	global a_x
+	a_x = 0
+	global phi
+	phi = 0
+	global v_phi
+	v_phi = 0
+	global control_continue
+	control_continue = True
+	global t
+	t = 0
+	global dt_sleep
+	dt_sleep = 0
+	global x_1
+	x_1 = 0
+	global x_2
+	x_2 = 0
+	global v_theta_moter_left
+	global v_theta_moter_right
+
+	theta = 0
+	v_theta = 0
+
+
+
+	theta_zero_detection = False
+	cal = True
+
+	theta_GYRO = 0
+	theta_ACCL = 0
+
+	n = 5
+	p_1 = 0.05 #角度推定相補フィルター定数
+	p_2 = 0.9 #ゼロ度検出用ローパスフィルタ定数
+	p_3 = 0.5 #角速度ローパスフィルタ定数
+	p_4 = 0.9 #加速度による角度推定用ローパスフィルタ定数
+	p_5 = 0.7 #(角度推定相補フィルター定数"p_1")用ローパスフィルタ定数
+	p_6 = 0.9 #位置推定相補フィルター用定数
+	p_7 = 0.8 #加速度ローパスフィルタ
+
+
+	#筐体情報
+	m = 0.78 #筐体重さ
+	R = 0.05 #筐体重心高さ
+	I = 0.10617 #筐体回転軸回り慣性モーメント
+	r = 0.045 #車輪半径
+	l = 0.115 #車輪幅
+
+	#制御パラメータ
+	k_2 = 15 #角速度項
+	k_1 = 9.80665 + m * R / 4 / I * k_2 * k_2 #角度項
+	k_3 = 1 #座標項
+	k_4 = 4 #速度項
+
+
+	a_y = 0
+	a_z = 0
+
+	theta_zero_judge = 10
+
+	dt = 0.007
+	dt_sleep = dt
+	t_start = time.time()
+	while control_continue == True:
+		for i in range(n):
+			#センサーより値を取得、補正、フィルタリング
+			a_y_raw = (-GET_XACCL() - 0.239738) * 0.980209
+			a_z_raw = (GET_ZACCL() + 0.285688) * 0.984507			
+			v_theta_raw = -GET_YGYRO() + 0.0000822816
+			
+			a_y = a_y * p_7 + a_y_raw * (1 - p_7)
+			a_z = a_z * p_7 + a_z_raw * (1 - p_7)
+			v_theta = v_theta * p_3 + v_theta_raw * (1 - p_3)
+
+			#加速度から角度を算出
+			theta_ACCL = theta_ACCL * p_4 + (-np.arctan(a_y/a_z) - 0.007725428306555) * (1 - p_4)
+			#角速度を積分し角度を算出（補正付き）
+			theta_GYRO += v_theta * dt
+			p_1 = p_1 * p_5 + (0.05 * np.exp(-11.09*np.power(9.80665 - np.sqrt(a_y*a_y+a_z*a_z), 2))) * (1 - p_5)
+			theta = (theta + v_theta * dt) * (1 - p_1) + theta_ACCL * p_1
+			#ゼロ度検出
+			if theta_zero_detection == False:
+				theta_zero_judge = theta_zero_judge * p_2  + np.abs(theta_ACCL) * (1 - p_2)
+				if theta_zero_judge < 0.005:
+					theta = 0
+					theta_GYRO = 0
+					theta_zero_detection = True
+
+			if theta_zero_detection == True:
+				a_x = k_1 * theta + k_2 * v_theta + k_3 * x + k_4 * v_x
+				x_2 = theta_moter_left * r
+				x_1 = theta_moter_right * r
+				x = (x + v_x * dt) * p_6 + (x_1 + x_2) / 2 * (1 - p_6)
+				v_x += a_x * dt
+
+				v_theta_moter_left = (v_x + v_left) / r
+				v_theta_moter_right = (v_x + v_right) / r
+				x -= (v_left + v_right) / 2 * dt
+
+				phi = (x_2 - x_1) / l
+
+			t += dt
+			time.sleep(dt_sleep)
+		#周波数調整
+		dt_sleep = dt - (time.time() - t_start - t) / n
+		if dt_sleep < 0.001:
+			dt_sleep = 0.001
+		if dt < dt_sleep:
+			dt_sleep = dt
 if __name__ == '__main__':
 	try:
 		f = open('data.dat', 'w')
@@ -317,98 +396,33 @@ if __name__ == '__main__':
 		SET_GPIO()
 		#i2cとbmx055設定
 		SET_BMX055()
-		#モーター駆動と角度計算を別スレッドでスタート
-		cal_theta = threading.Thread(target=CAL_THETA)
-		cal_theta.start()
-		keyboard_control = threading.Thread(target=KEYBOARD_CONTROL)
-		keyboard_control.start()
-		while True:#リセット用ループ
-			SET_GPIO()			
-			moter_left = threading.Thread(target=MOTER_LEFT)
-			moter_right = threading.Thread(target=MOTER_RIGHT)
-			motor_drive_left = True
-			motor_drive_right = True
-			moter_left.start()
-			moter_right.start()
-			#角度ゼロの検出待ち
-			print("stand by")
-			theta_zero_detection = False
-			while theta_zero_detection == False:
-				time.sleep(0.1)
-			print("start control program")
-
-			m = 0.78
-			R = 0.05
-			I = 0.10617
-			r = 0.045
-
-			k_2 = 15 #角速度項
-			k_1 = 9.80665 + m * R / 4 / I * k_2 * k_2 #角度項
-			k_3 = 1 #座標項
-			k_4 = 5 #速度項
-
-			alpha = 0.9 #位置推定相補フィルター用定数
-
-			a_x = 0
-			v_x = 0.001
-			global x
-			x = 0
-
-			dt = 0.007
-			dt_sleep = dt
-			t = 0
-			t_start = time.time()
-			n = 2
-			while True:
-				for i in range(n):
-					theta_zero_detection == False
-					a_x = k_1 * theta + k_2 * v_theta + k_3 * func(x) + k_4 * v_x
-					x_2 = theta_moter_left * r
-					x_1 = theta_moter_right * r				
-					x = (x + v_x * dt) * alpha + (x_1 + x_2) / 2 * (1 - alpha)
-					v_x += a_x * dt
-					
-					v_theta_moter_left = (v_x + v_left) / r
-					v_theta_moter_right = (v_x + v_right) / r
-					x -= (v_left + v_right) / 2 * dt
-
-					t += dt
-					time.sleep(dt_sleep)
-					if np.pi / 25 / v_x * r > moter_sleep_max * 2 and theta_zero_detection == True:
-						v_x = 0
-					#ログ出力
-					f.write(str(t) + "	" + str(dt_sleep) + "	" + str(theta) + "	" + str(v_theta) + "	" + str(x) + "	" + str(x_1) + "	" + str(x_2) + "	" + str(v_x) + "	" + str(a_x) + '\n')
-				#周波数調整			
-				dt_sleep = dt - (time.time() - t_start - t) / n
-				if dt_sleep < 0.001:
-					dt_sleep = 0.001
-				if dt < dt_sleep:
-					dt_sleep = dt
-
-				#リセット判定
-				if np.abs(theta) > np.pi / 3:
-					print("reset")
-					motor_drive_left = False
-					motor_drive_right = False
-					moter_left.join()
-					moter_right.join()
-					theta_zero_detection = False
-					CLEAR_GPIO()
-					break
+		#各スレッドでスタート
+		moter_left = threading.Thread(target=MOTER_LEFT)
+		moter_left.start()
+		moter_right = threading.Thread(target=MOTER_RIGHT)
+		moter_right.start()
+		keyboard_operation = threading.Thread(target=KEYBOARD_OPERATION)
+		keyboard_operation.start()
+		time.sleep(0.1)
+		control = threading.Thread(target=CONTROL)
+		control.start()
+		while True:
+			f.write(str(t) + "	" + str(dt_sleep) + "	" + str(theta) + "	" + str(v_theta) + "	" + str(phi) + "	" + str(v_phi) + "	" + str(x) + "	" + str(x_1) + "	" + str(x_2) + "	" + str(v_x) + "	" + str(a_x) + '\n')
+			time.sleep(0.01)
 	except KeyboardInterrupt:
 		print("\nCtl+C")
 	except Exception as e:
 		print(str(e))
 	finally:
 		#スレッド終了
-		motor_drive_left = False
-		motor_drive_right = False
-		cal = False
-		keyboard = False
+		motor_left_continue = False
+		motor_right_continue = False
+		control_continue = False
+		keyboard_operation_continue = False
 		moter_left.join()
 		moter_right.join()
-		cal_theta.join()
-		keyboard_control.join()
+		control.join()
+		keyboard_operation.join()
 		#gpio終了
 		CLEAR_GPIO()
 		#i2c終了
