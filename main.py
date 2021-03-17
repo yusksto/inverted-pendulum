@@ -344,7 +344,6 @@ if __name__ == '__main__':
 
 			k_2 = 15 #角速度項
 			k_1 = 9.80665 + m * R / 4 / I * k_2 * k_2 #角度項
-			print(k_1)
 			k_3 = 1 #座標項
 			k_4 = 5 #速度項
 
@@ -364,14 +363,14 @@ if __name__ == '__main__':
 				for i in range(n):
 					theta_zero_detection == False
 					a_x = k_1 * theta + k_2 * v_theta + k_3 * func(x) + k_4 * v_x
-					x_1 = theta_moter_left * r
-					x_2 = theta_moter_right * r				
+					x_2 = theta_moter_left * r
+					x_1 = theta_moter_right * r				
 					x = (x + v_x * dt) * alpha + (x_1 + x_2) / 2 * (1 - alpha)
 					v_x += a_x * dt
 					
 					v_theta_moter_left = (v_x + v_left) / r
 					v_theta_moter_right = (v_x + v_right) / r
-					x += (v_left + v_right) / 2 * dt
+					x -= (v_left + v_right) / 2 * dt
 
 					t += dt
 					time.sleep(dt_sleep)
