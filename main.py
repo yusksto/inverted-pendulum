@@ -20,8 +20,7 @@ moter_sleep_mid = 0.02
 moter_sleep_max = 0.07
 
 moter_steps = 200
-operation_modes = 4
-k = 2 * np.pi / moter_steps * operation_modes
+k = 2 * np.pi / moter_steps
 
 def func(x):
 	a = 0.4
@@ -51,7 +50,7 @@ def MOTER_LEFT():
 	
 	n = 0
 	dt = 0
-	k_1 = 2 * np.pi / moter_steps * operation_modes
+	k_1 = 2 * np.pi / moter_steps
 
 	GPIO.output(PinD_1,GPIO.HIGH)
 	while motor_left_continue == True:	
@@ -118,7 +117,7 @@ def MOTER_RIGHT():
 
 	n = 0
 	dt = 0
-	k_1 = 2 * np.pi / moter_steps * operation_modes
+	k_1 = 2 * np.pi / moter_steps
 
 	while motor_right_continue == True:
 		theta_moter_right = k_1 * n
@@ -246,7 +245,7 @@ def KEYBOARD_OPERATION():
 	global theta_moter_right
 	v_left = 0
 	v_right = 0
-	v_slide = 0.25
+	v_slide = 0.05
 	keyboard_operation_continue = True
 
 	a = 0
@@ -311,15 +310,16 @@ def CONTROL():
 	theta_GYRO = 0
 	theta_ACCL = 0
 
-	n = 5
-	p_1 = 0.05 #角度推定相補フィルター定数
-	p_2 = 0.9 #ゼロ度検出用ローパスフィルタ定数
-	p_3 = 0.5 #角速度ローパスフィルタ定数
-	p_4 = 0.9 #加速度による角度推定用ローパスフィルタ定数
-	p_5 = 0.7 #(角度推定相補フィルター定数"p_1")用ローパスフィルタ定数
-	p_6 = 0.9 #位置推定相補フィルター用定数
-	p_7 = 0.8 #加速度ローパスフィルタ
-
+	n = 2
+	p_1 = 0.05 #角度"theta"推定相補フィルター定数
+	p_2 = 0.9 #ゼロ度"theta"検出用ローパスフィルタ定数
+	p_3 = 0.5 #角速度"v_theta"ローパスフィルタ定数
+	p_4 = 0.95 #加速度センサーによる角度"theta"推定用ローパスフィルタ定数
+	p_5 = 0.7 #(角度"theta"推定相補フィルター定数"p_1")用ローパスフィルタ定数
+	p_6 = 0.95 #位置推定相補フィルター用定数
+	p_7 = 0.7 #加速度センサーローパスフィルタ
+	p_8 = 0.9 #角速度"v_phi"ローパスフィルタ定数
+	p_9 = 0.95 #角度"phi"推定相補フィルター定数
 
 	#筐体情報
 	m = 0.78 #筐体重さ
@@ -329,10 +329,10 @@ def CONTROL():
 	l = 0.115 #車輪幅
 
 	#制御パラメータ
-	k_2 = 15 #角速度項
-	k_1 = 9.80665 + m * R / 4 / I * k_2 * k_2 #角度項
-	k_3 = 1 #座標項
-	k_4 = 4 #速度項
+	k_2 = 2 #角速度項
+	k_1 = (9.80665 + m * R / 4 / I * k_2 * k_2)  #角度項
+	k_3 = 2 #座標項
+	k_4 = 3 #速度項
 
 
 	a_y = 0
@@ -340,7 +340,7 @@ def CONTROL():
 
 	theta_zero_judge = 10
 
-	dt = 0.007
+	dt = 0.009
 	dt_sleep = dt
 	t_start = time.time()
 	while control_continue == True:
@@ -349,13 +349,15 @@ def CONTROL():
 			a_y_raw = (-GET_XACCL() - 0.239738) * 0.980209
 			a_z_raw = (GET_ZACCL() + 0.285688) * 0.984507			
 			v_theta_raw = -GET_YGYRO() + 0.0000822816
+			v_phi_raw = GET_ZGYRO()
 			
 			a_y = a_y * p_7 + a_y_raw * (1 - p_7)
 			a_z = a_z * p_7 + a_z_raw * (1 - p_7)
 			v_theta = v_theta * p_3 + v_theta_raw * (1 - p_3)
+			v_phi = v_phi * p_8 + v_phi_raw * (1 - p_8)
 
 			#加速度から角度を算出
-			theta_ACCL = theta_ACCL * p_4 + (-np.arctan(a_y/a_z) - 0.007725428306555) * (1 - p_4)
+			theta_ACCL = theta_ACCL * p_4 + (-np.arctan(a_y/a_z) - 0.020725428306555) * (1 - p_4)
 			#角速度を積分し角度を算出（補正付き）
 			theta_GYRO += v_theta * dt
 			p_1 = p_1 * p_5 + (0.05 * np.exp(-11.09*np.power(9.80665 - np.sqrt(a_y*a_y+a_z*a_z), 2))) * (1 - p_5)
@@ -378,15 +380,21 @@ def CONTROL():
 				v_theta_moter_left = (v_x + v_left) / r
 				v_theta_moter_right = (v_x + v_right) / r
 				x -= (v_left + v_right) / 2 * dt
+				phi_1 = (x_2 - x_1) / l
+				phi = (phi + v_phi * dt) * p_9 + phi_1 * (1 - p_9)
 
-				phi = (x_2 - x_1) / l
-
+			if np.abs(theta) > np.pi / 3:
+				theta_zero_detection = False
+				x = 0
+				v_x = 0
+				theta_zero_judge = 10
+			
 			t += dt
 			time.sleep(dt_sleep)
 		#周波数調整
 		dt_sleep = dt - (time.time() - t_start - t) / n
-		if dt_sleep < 0.001:
-			dt_sleep = 0.001
+		if dt_sleep < 0.0005:
+			dt_sleep = 0.0005
 		if dt < dt_sleep:
 			dt_sleep = dt
 if __name__ == '__main__':
@@ -396,7 +404,7 @@ if __name__ == '__main__':
 		SET_GPIO()
 		#i2cとbmx055設定
 		SET_BMX055()
-		#各スレッドでスタート
+		#各スレッドスタート
 		moter_left = threading.Thread(target=MOTER_LEFT)
 		moter_left.start()
 		moter_right = threading.Thread(target=MOTER_RIGHT)
